@@ -58,6 +58,7 @@ def parse_args():
             "magicoder-evol-instruct",
             "sciq",
             "camel",
+            "nebius-llama31-8b-infinity-instruct",
         ],
         help="The demo dataset to quickly run the training for speculative decoding",
     )
@@ -234,6 +235,19 @@ def process_sharegpt4v_row(row, dataset_name: str = None) -> Dict:
     return row, skipped_count
 
 
+def process_nebius_infinity_instruct(
+    row: Dict, dataset_name: str = None
+) -> Tuple[Dict, int]:
+    conversation = row["conversation"][0]
+    generated_message = row["generated_message"]
+    formatted_conversations = [
+        {"role": "user", "content": conversation["content"]},
+        {"role": "assistant", "content": generated_message["content"]},
+    ]
+    row = {"id": str(row["id"]), "conversations": formatted_conversations}
+    return row, 0
+
+
 def load_dataset_from_path(data_path: Path):
     suffix = data_path.suffix.split(".")[1]
     ds = load_dataset(suffix, data_files=str(data_path), split="train")
@@ -283,7 +297,7 @@ def process_and_save_ds(train_ds, test_ds, output_path, proc_fn, dataset_name):
 import hashlib
 
 
-def process_opc_sft_stage1(row: Dict) -> Tuple[Dict, int]:
+def process_opc_sft_stage1(row: Dict, dataset_name: str = None) -> Tuple[Dict, int]:
     row_id = hashlib.md5((row["instruction"] + row["output"]).encode()).hexdigest()
     processed_row = {
         "id": row_id,
@@ -580,6 +594,12 @@ def main():
         raise Exception("Not supported sharegpt4v now")
         download_vlm_dataset(args.dataset)
         proc_fn = process_sharegpt4v_row
+    elif args.dataset == "nebius-llama31-8b-infinity-instruct":
+        ds = load_dataset(
+            "nebius/Llama-3.1-8B-Instruct-Infinity-Instruct-0625", split="train"
+        )
+        ds = ds.map(add_index, with_indices=True)
+        proc_fn = process_nebius_infinity_instruct
     elif args.dataset == "allava4v":
         ds = load_dataset("FreedomIntelligence/ALLaVA-4V", name="allava_laion")[
             "instruct"
